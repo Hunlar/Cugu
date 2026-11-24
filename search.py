@@ -52,6 +52,8 @@ async def search_content(
             "license_url": item.get("license_url"),
             "license_label": item.get("license_label"),
             "rights": item.get("rights"),
+            "creator": item.get("creator"),
+            "item_page": item.get("item_page"),
             "metadata": item.get("metadata") or {},
         }
 
