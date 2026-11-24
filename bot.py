@@ -1,197 +1,192 @@
-"""GROUP CINEMA - Telegram bot entry point.
-
-This is the first runnable bot layer: /start, /help and the /Hplay source menu.
-Catalog providers, database-backed sessions and actual group-call playback are
-added in later project files; this file deliberately does not pretend those
-integrations are already implemented.
-"""
-
 import asyncio
 import logging
 
 from aiogram import Bot, Dispatcher, F
+from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.filters import Command, CommandStart
+from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import (
-    BotCommand,
-    CallbackQuery,
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
     Message,
+    CallbackQuery,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
 )
 
-from config import settings, validate_bot_config
+from config import settings
+from states import CinemaStates
+from routers import router
+from storage import initialize_storage, close_storage
+from middlewares import CinemaMiddleware
+
 
 logging.basicConfig(
-    level=getattr(logging, settings.log_level, logging.INFO),
-    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(message)s",
 )
+
 logger = logging.getLogger("group_cinema")
 
-dp = Dispatcher()
 
-# Tracks the latest menu message per chat for clean menu replacement.
-_menu_messages: dict[int, int] = {}
-
-
-def support_keyboard() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="💬 Destek grubu", url=settings.support_group)],
-            [InlineKeyboardButton(text="📢 Destek kanalı", url=settings.support_channel)],
-            [InlineKeyboardButton(text="👨‍💻 Geliştirici", url=settings.developer_url)],
-            [InlineKeyboardButton(text="🎬 Film ara", callback_data="gc:play")],
-        ]
-    )
-
-
-def source_keyboard() -> InlineKeyboardMarkup:
+def source_menu():
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="PuhuTV", callback_data="gc:source:puhutv"
-                ),
-                InlineKeyboardButton(
-                    text="HD Film Cehennemi",
-                    callback_data="gc:source:hd_film_cehennemi",
-                ),
+                    text="📺 PuhuTV",
+                    callback_data="gc_source:puhutv",
+                )
             ],
-            [InlineKeyboardButton(text="⬅️ Ana menü", callback_data="gc:home")],
+            [
+                InlineKeyboardButton(
+                    text="🎬 HD Film Cehennemi",
+                    callback_data="gc_source:hd_film_cehennemi",
+                )
+            ],
         ]
     )
 
 
-async def replace_menu(message: Message, text: str, reply_markup=None) -> None:
-    """Delete the previous bot menu in this chat, then send a fresh one."""
-    chat_id = message.chat.id
-    previous_id = _menu_messages.get(chat_id)
-
-    if previous_id:
-        try:
-            await message.bot.delete_message(chat_id, previous_id)
-        except Exception:
-            logger.debug("Previous menu could not be deleted", exc_info=True)
-
-    sent = await message.answer(text, reply_markup=reply_markup)
-    _menu_messages[chat_id] = sent.message_id
-
-
-async def replace_menu_from_callback(
-    callback: CallbackQuery, text: str, reply_markup=None
-) -> None:
-    if not callback.message:
-        await callback.answer()
-        return
-
-    chat_id = callback.message.chat.id
-    previous_id = _menu_messages.get(chat_id, callback.message.message_id)
-
-    try:
-        await callback.bot.delete_message(chat_id, previous_id)
-    except Exception:
-        logger.debug("Previous menu could not be deleted", exc_info=True)
-
-    sent = await callback.bot.send_message(
-        chat_id, text, reply_markup=reply_markup
-    )
-    _menu_messages[chat_id] = sent.message_id
-    await callback.answer()
-
-
-@dp.message(CommandStart())
-async def start_handler(message: Message) -> None:
-    text = (
-        "<b>GROUP CINEMA</b> 🎬\n\n"
-        "Grupunuzda sinema deneyimini başlatın.\n"
-        "Film aramak için <b>Film ara</b> düğmesine veya /Hplay komutuna basın.\n\n"
-        "Yardım için /help komutunu kullanabilirsiniz."
-    )
-    await replace_menu(message, text, support_keyboard())
-
-
-@dp.message(Command("help"))
-async def help_handler(message: Message) -> None:
-    text = (
-        "<b>GROUP CINEMA — Yardım</b>\n\n"
-        "• /Hplay — Film arama menüsünü açar.\n"
-        "• /start — Ana menüyü gösterir.\n"
-        "• /help — Yardım bilgisini gösterir.\n\n"
-        "Yayın başlatma, yalnızca kullanım hakkı bulunan ve teknik olarak "
-        "yetkilendirilmiş yayın kaynakları bağlandığında etkinleştirilecektir."
-    )
-    await replace_menu(message, text, support_keyboard())
-
-
-@dp.message(Command("Hplay"))
-async def play_handler(message: Message) -> None:
-    await replace_menu(
-        message,
-        "<b>🎬 GROUP CINEMA | Kaynak seç</b>\n\n"
-        "Aramak istediğiniz yetkili içerik kaynağını seçin.",
-        source_keyboard(),
+def main_menu():
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="🎬 Film / Dizi Ara",
+                    callback_data="gc_menu:play",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="❓ Yardım",
+                    callback_data="gc_menu:help",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="💬 Destek",
+                    url="https://t.me/ozturkordusu",
+                )
+            ],
+        ]
     )
 
 
-@dp.callback_query(F.data == "gc:play")
-async def play_button_handler(callback: CallbackQuery) -> None:
-    await replace_menu_from_callback(
-        callback,
-        "<b>🎬 GROUP CINEMA | Kaynak seç</b>\n\n"
-        "Aramak istediğiniz yetkili içerik kaynağını seçin.",
-        source_keyboard(),
+async def start_handler(message: Message):
+    await message.answer(
+        "🎬 <b>GROUP CINEMA</b>\n\n"
+        "Grubunda film ve dizi aramak için aşağıdaki "
+        "butonu kullanabilirsin.",
+        reply_markup=main_menu(),
     )
 
 
-@dp.callback_query(F.data == "gc:home")
-async def home_button_handler(callback: CallbackQuery) -> None:
-    await replace_menu_from_callback(
-        callback,
-        "<b>GROUP CINEMA</b> 🎬\n\n"
-        "Film aramak için aşağıdaki düğmeyi kullanın.",
-        support_keyboard(),
+async def help_handler(message: Message):
+    await message.answer(
+        "🎬 <b>GROUP CINEMA YARDIM</b>\n\n"
+        "/start - Ana menü\n"
+        "/help - Yardım\n"
+        "/Hplay - Film veya dizi ara\n\n"
+        "Destek: @ozturkordusu"
     )
 
 
-@dp.callback_query(F.data.startswith("gc:source:"))
-async def source_selected_handler(callback: CallbackQuery) -> None:
-    source = callback.data.rsplit(":", 1)[-1]
-    source_names = {
-        "puhutv": "PuhuTV",
-        "hd_film_cehennemi": "HD Film Cehennemi",
-    }
-    source_name = source_names.get(source)
+async def play_handler(
+    message: Message,
+    state: FSMContext,
+):
+    await state.clear()
 
-    if not source_name:
+    await message.answer(
+        "Yayın kaynağını seç:",
+        reply_markup=source_menu(),
+    )
+
+
+async def source_handler(
+    callback: CallbackQuery,
+    state: FSMContext,
+):
+    source = callback.data.split(":", 1)[1]
+
+    if source not in ("puhutv", "hd_film_cehennemi"):
         await callback.answer("Geçersiz kaynak.", show_alert=True)
         return
 
-    # Search provider integration will be connected in a later file.
-    await replace_menu_from_callback(
-        callback,
-        f"<b>{source_name}</b> seçildi.\n\n"
-        "Kaynak arama bağlantısı henüz eklenmedi. Sonraki proje dosyalarında, "
-        "sağlayıcının izin verdiği resmî erişim yöntemi bağlanacak.",
-        source_keyboard(),
+    await state.update_data(source=source)
+    await state.set_state(CinemaStates.waiting_for_search_query)
+
+    await callback.message.answer(
+        "🔎 Aramak istediğin film veya dizinin adını yaz:"
     )
 
+    await callback.answer()
 
-async def main() -> None:
-    validate_bot_config()
-    bot = Bot(token=settings.bot_token, default=None)
 
-    await bot.set_my_commands(
-        [
-            BotCommand(command="start", description="Ana menüyü aç"),
-            BotCommand(command="help", description="Yardım"),
-            BotCommand(command="Hplay", description="Film ara"),
-        ]
+async def menu_handler(
+    callback: CallbackQuery,
+    state: FSMContext,
+):
+    action = callback.data.split(":", 1)[1]
+
+    if action == "play":
+        await state.clear()
+        await callback.message.answer(
+            "Yayın kaynağını seç:",
+            reply_markup=source_menu(),
+        )
+
+    elif action == "help":
+        await callback.message.answer(
+            "/start - Ana menü\n"
+            "/help - Yardım\n"
+            "/Hplay - Film veya dizi ara"
+        )
+
+    await callback.answer()
+
+
+async def main():
+    if not settings.bot_token:
+        raise RuntimeError("BOT_TOKEN ayarlanmamış.")
+
+    bot = Bot(
+        token=settings.bot_token,
+        default=DefaultBotProperties(
+            parse_mode=ParseMode.HTML
+        ),
     )
 
-    logger.info("GROUP CINEMA bot starting")
+    dp = Dispatcher(storage=MemoryStorage())
+
+    dp.message.middleware(CinemaMiddleware())
+
+    dp.include_router(router)
+
+    dp.message.register(start_handler, Command("start"))
+    dp.message.register(help_handler, Command("help"))
+    dp.message.register(play_handler, Command("Hplay"))
+
+    dp.callback_query.register(
+        source_handler,
+        F.data.startswith("gc_source:"),
+    )
+
+    dp.callback_query.register(
+        menu_handler,
+        F.data.startswith("gc_menu:"),
+    )
+
     try:
-        await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
+        await initialize_storage()
+        logger.info("Veritabanı bağlantısı hazır.")
+
+        logger.info("GROUP CINEMA başlatılıyor...")
+        await dp.start_polling(bot)
+
     finally:
+        await close_storage()
         await bot.session.close()
 
 
