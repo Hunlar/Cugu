@@ -1,6 +1,6 @@
 from typing import Optional
 
-from database import Database
+from storage import Database
 from streaming import StreamingManager
 
 
@@ -21,11 +21,11 @@ class PlaybackManager:
         media_url: str,
         title: str,
         video: bool = True,
+        source: str = "",
     ):
         await self.streaming.play(
             chat_id=chat_id,
             media_url=media_url,
-            video=video,
         )
 
         session = {
@@ -33,6 +33,7 @@ class PlaybackManager:
             "title": title,
             "media_url": media_url,
             "video": video,
+            "source": source,
             "status": "playing",
         }
 
@@ -52,6 +53,7 @@ class PlaybackManager:
         await self.streaming.stop(chat_id)
 
         session = self.sessions.get(chat_id)
+
         if session:
             session["status"] = "stopped"
 
@@ -72,7 +74,6 @@ class PlaybackManager:
         await self.streaming.play(
             chat_id=chat_id,
             media_url=session["media_url"],
-            video=session.get("video", True),
         )
 
         session["status"] = "playing"
