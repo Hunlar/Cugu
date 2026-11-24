@@ -1,8 +1,8 @@
 """Internet Archive catalog integration for openly licensed video items.
 
 Only items with an explicit public-domain or permissive Creative Commons
-license are returned. This is a metadata/search integration; it does not
-bypass access controls or DRM.
+license are returned. Rights metadata is supplied by uploaders and is not
+an independent legal guarantee; review each item before public exhibition.
 """
 
 import asyncio
@@ -52,12 +52,12 @@ def _license_details(metadata: dict[str, Any]) -> tuple[bool, str, str]:
         label = "Public Domain"
     elif "publicdomain/zero" in combined:
         label = "CC0"
+    elif "publicdomain/mark" in combined:
+        label = "Public Domain Mark"
     elif "licenses/by-sa/" in combined:
         label = "CC BY-SA"
     elif "licenses/by/" in combined:
         label = "CC BY"
-    elif "publicdomain/mark" in combined:
-        label = "Public Domain Mark"
     else:
         label = "Lisans bilgisi doğrulanamadı"
 
@@ -95,7 +95,6 @@ def _select_mp4(files: list[dict[str, Any]]) -> dict[str, Any] | None:
     if not candidates:
         return None
 
-    # Prefer the largest original MP4, usually the best available quality.
     candidates.sort(key=lambda item: item[0], reverse=True)
     return candidates[0][2]
 
@@ -122,23 +121,25 @@ async def _fetch_item(
         return None
 
     filename = _text(file_info.get("name"))
+    encoded_id = quote(identifier, safe="")
     media_url = (
-        f"{BASE_URL}/download/{quote(identifier, safe='')}/"
+        f"{BASE_URL}/download/{encoded_id}/"
         f"{quote(filename, safe='')}"
     )
 
-    description = _text(metadata.get("description"))
     return {
         "id": identifier,
         "source": "internet_archive",
         "title": _text(metadata.get("title")) or title or identifier,
-        "description": description[:700],
+        "description": _text(metadata.get("description"))[:700],
         "content_type": "movie",
-        "thumbnail": f"{BASE_URL}/services/img/{quote(identifier, safe='')}",
+        "thumbnail": f"{BASE_URL}/services/img/{encoded_id}",
         "media_url": media_url,
         "license_url": license_url,
         "license_label": license_label,
         "rights": _text(metadata.get("rights"))[:500],
+        "creator": _text(metadata.get("creator") or metadata.get("contributor")),
+        "item_page": f"{BASE_URL}/details/{encoded_id}",
         "metadata": {
             "identifier": identifier,
             "filename": filename,
