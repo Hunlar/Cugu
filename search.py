@@ -14,7 +14,7 @@ async def search_content(
 ) -> list[dict]:
     query = query.strip()
 
-    if source not in ("puhutv", "hd_film_cehennemi"):
+    if source not in ("puhutv", "hd_film_cehennemi", "internet_archive"):
         raise CatalogSearchError("Geçersiz yayın kaynağı.")
 
     if len(query) < 2:
@@ -48,6 +48,10 @@ async def search_content(
             "description": str(item.get("description") or ""),
             "content_type": str(item.get("content_type") or "unknown"),
             "thumbnail": item.get("thumbnail"),
+            "media_url": item.get("media_url"),
+            "license_url": item.get("license_url"),
+            "license_label": item.get("license_label"),
+            "rights": item.get("rights"),
             "metadata": item.get("metadata") or {},
         }
 
