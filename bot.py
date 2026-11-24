@@ -27,8 +27,10 @@ logger = logging.getLogger("group_cinema")
 
 def source_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📺 PuhuTV", callback_data="gc_source:puhutv")],
-        [InlineKeyboardButton(text="🎬 HD Film Cehennemi", callback_data="gc_source:hd_film_cehennemi")],
+        [InlineKeyboardButton(
+            text="🎞 Internet Archive (Açık Lisanslı Filmler)",
+            callback_data="gc_source:internet_archive",
+        )],
     ])
 
 
@@ -42,7 +44,8 @@ def main_menu():
 
 async def start_handler(message: Message):
     await message.answer(
-        "🎬 <b>GROUP CINEMA</b>\n\nGrubunda film ve dizi aramak için aşağıdaki butonu kullanabilirsin.",
+        "🎬 <b>GROUP CINEMA</b>\n\n"
+        "Açık lisanslı film kataloğunda arama yapmak için aşağıdaki butonu kullan.",
         reply_markup=main_menu(),
     )
 
@@ -50,24 +53,26 @@ async def start_handler(message: Message):
 async def help_handler(message: Message):
     await message.answer(
         "🎬 <b>GROUP CINEMA YARDIM</b>\n\n"
-        "/start - Ana menü\n/help - Yardım\n/Hplay - Film veya dizi ara\n\n"
-        f"Destek: {settings.support_group}"
+        "/start - Ana menü\n/help - Yardım\n/Hplay - Film ara\n\n"
+        "Kaynak: Internet Archive açık lisanslı içerikleri."
     )
 
 
 async def play_handler(message: Message, state: FSMContext):
     await state.clear()
-    await message.answer("Yayın kaynağını seç:", reply_markup=source_menu())
+    await message.answer("Film kaynağını seç:", reply_markup=source_menu())
 
 
 async def source_handler(callback: CallbackQuery, state: FSMContext):
     source = callback.data.split(":", 1)[1]
-    if source not in ("puhutv", "hd_film_cehennemi"):
+    if source != "internet_archive":
         await callback.answer("Geçersiz kaynak.", show_alert=True)
         return
     await state.update_data(source=source)
     await state.set_state(CinemaStates.waiting_for_search_query)
-    await callback.message.answer("🔎 Aramak istediğin film veya dizinin adını yaz:")
+    await callback.message.answer(
+        "🔎 Aramak istediğin kamu malı veya açık lisanslı filmin adını yaz:"
+    )
     await callback.answer()
 
 
@@ -75,9 +80,11 @@ async def menu_handler(callback: CallbackQuery, state: FSMContext):
     action = callback.data.split(":", 1)[1]
     if action == "play":
         await state.clear()
-        await callback.message.answer("Yayın kaynağını seç:", reply_markup=source_menu())
+        await callback.message.answer("Film kaynağını seç:", reply_markup=source_menu())
     elif action == "help":
-        await callback.message.answer("/start - Ana menü\n/help - Yardım\n/Hplay - Film veya dizi ara")
+        await callback.message.answer(
+            "/start - Ana menü\n/help - Yardım\n/Hplay - Film ara"
+        )
     await callback.answer()
 
 
@@ -91,6 +98,7 @@ async def main():
     )
     dp = Dispatcher(storage=MemoryStorage())
     dp.message.middleware(CinemaMiddleware())
+    dp.callback_query.middleware(CinemaMiddleware())
     dp.include_router(router)
 
     dp.message.register(start_handler, Command("start"))
@@ -111,11 +119,11 @@ async def main():
         streaming = StreamingManager(mtproto_client)
         await streaming.start()
         dp["streaming"] = streaming
-        logger.info("Telegram kullanıcı hesabı ve PyTgCalls başlatıldı.")
+        logger.info("Telegram user account and PyTgCalls started.")
 
         await initialize_storage()
         storage_started = True
-        logger.info("PostgreSQL bağlantısı hazır.")
+        logger.info("PostgreSQL connection ready.")
 
         await dp.start_polling(bot)
 
@@ -126,7 +134,7 @@ async def main():
             try:
                 await streaming.calls.stop()
             except Exception:
-                logger.exception("PyTgCalls kapatılırken hata oluştu.")
+                logger.exception("PyTgCalls shutdown failed.")
         if user_started:
             await user_client.stop()
         await bot.session.close()
