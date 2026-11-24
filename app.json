@@ -67,6 +67,22 @@
       "description": "Developer contact URL",
       "value": "https://t.me/byatillaozturk",
       "required": true
+    },
+    "PUHUTV_CATALOG_URL": {
+      "description": "Authorized PuhuTV catalog endpoint URL",
+      "required": false
+    },
+    "PUHUTV_API_KEY": {
+      "description": "PuhuTV catalog API key if provided by the provider",
+      "required": false
+    },
+    "HDCEHENNEMI_CATALOG_URL": {
+      "description": "Authorized HD Film Cehennemi catalog endpoint URL",
+      "required": false
+    },
+    "HDCEHENNEMI_API_KEY": {
+      "description": "HD Film Cehennemi catalog API key if provided by the provider",
+      "required": false
     }
   }
 }
