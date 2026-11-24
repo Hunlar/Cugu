@@ -1,4 +1,5 @@
 import logging
+from html import escape
 
 from aiogram import Router, F
 from aiogram.types import (
@@ -106,8 +107,19 @@ async def select_result(
 
     item = results[index]
     details = format_content(item)
-    license_label = item.get("license_label") or "Bilinmiyor"
-    details += f"\n\n<b>Lisans:</b> {license_label}"
+    details += f"\n\n<b>Lisans:</b> {escape(item.get('license_label') or 'Bilinmiyor')}"
+
+    creator = item.get("creator")
+    if creator:
+        details += f"\n<b>Atıf:</b> {escape(creator)}"
+
+    license_url = item.get("license_url")
+    if license_url:
+        details += f'\n<a href="{escape(license_url)}">Lisans koşulları</a>'
+
+    item_page = item.get("item_page")
+    if item_page:
+        details += f' · <a href="{escape(item_page)}">Internet Archive</a>'
 
     await callback.message.answer(
         details,
@@ -142,7 +154,6 @@ async def start_playback(
     item = results[index]
     media_url = item.get("media_url") or ""
 
-    # Accept only the direct download host created by our Archive provider.
     if not media_url.startswith("https://archive.org/download/"):
         await callback.answer("Geçerli video dosyası bulunamadı.", show_alert=True)
         return
@@ -165,8 +176,11 @@ async def start_playback(
             status="playing",
             metadata={"source": "internet_archive"},
         )
+        attribution = item.get("creator") or "Internet Archive kaydındaki eser sahibi"
+        license_label = item.get("license_label") or "Açık lisans"
         await callback.message.answer(
-            f"▶️ <b>{item['title']}</b> sesli sohbette başlatıldı.\n"
+            f"▶️ <b>{escape(item['title'])}</b> sesli sohbette başlatıldı.\n"
+            f"Atıf: {escape(attribution)} · {escape(license_label)}\n"
             "Not: Grubun sesli sohbeti önceden açık olmalı ve yayın hesabı "
             "grupta bulunmalı.",
             parse_mode="HTML",
