@@ -1,0 +1,72 @@
+{
+  "name": "GROUP CINEMA",
+  "description": "Telegram group cinema and authorized media streaming bot",
+  "repository": "https://github.com/REPLACE_WITH_YOUR_GITHUB_USERNAME/REPLACE_WITH_REPOSITORY",
+  "keywords": [
+    "telegram",
+    "cinema",
+    "streaming",
+    "python"
+  ],
+  "stack": "container",
+  "formation": {
+    "worker": {
+      "quantity": 1,
+      "size": "basic"
+    }
+  },
+  "env": {
+    "BOT_TOKEN": {
+      "description": "Telegram bot token from BotFather",
+      "required": true
+    },
+    "API_ID": {
+      "description": "Telegram API ID from my.telegram.org",
+      "required": true
+    },
+    "API_HASH": {
+      "description": "Telegram API Hash from my.telegram.org",
+      "required": true
+    },
+    "STRING_SESSION": {
+      "description": "Telegram user-account session for authorized group-call streaming",
+      "required": true
+    },
+    "DATABASE_URL": {
+      "description": "PostgreSQL connection URL",
+      "required": true
+    },
+    "GOOGLE_TRANSLATE_API_KEY": {
+      "description": "Optional Google Cloud Translation API key",
+      "required": false
+    },
+    "STORAGE_CHAT_ID": {
+      "description": "Optional private Telegram storage chat ID",
+      "required": false
+    },
+    "LOG_CHAT_ID": {
+      "description": "Optional private Telegram log chat ID",
+      "required": false
+    },
+    "DEFAULT_LANGUAGE": {
+      "description": "Default interface language",
+      "value": "tr",
+      "required": true
+    },
+    "SUPPORT_GROUP": {
+      "description": "Support group URL",
+      "value": "https://t.me/ozturkordusu",
+      "required": true
+    },
+    "SUPPORT_CHANNEL": {
+      "description": "Support channel URL",
+      "value": "https://t.me/sancakmain",
+      "required": true
+    },
+    "DEVELOPER_URL": {
+      "description": "Developer contact URL",
+      "value": "https://t.me/byatillaozturk",
+      "required": true
+    }
+  }
+}
